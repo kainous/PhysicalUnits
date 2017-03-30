@@ -13,7 +13,7 @@ namespace PhysicalUnits {
     public static readonly IPhysicalUnit<Voltage> Megavolts = RegisterScaled("Megavolts", 1E6, "MV");
 
     public override IPhysicalUnit<Voltage> BaseUnit {
-      get {
+      get { 
         return Volts;
       }
     }
