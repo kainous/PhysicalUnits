@@ -41,6 +41,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Angle.cs" />
     <Compile Include="Current.cs" />
     <Compile Include="IMeasure.cs" />
     <Compile Include="IPhysicalUnit.cs" />
