@@ -30,6 +30,14 @@ namespace PhysicalUnits {
 
       return new PhysicalDifference<TMeasure>(result, b.Unit);
     }
+
+    public static PhysicalQuantity<Fraction> operator /(PhysicalQuantity<TMeasure> a, PhysicalQuantity<TMeasure> b) {
+      var result = a.Unit == b.Unit
+               ? a.Value / b.Value
+               : b.Unit.ConvertToBase(a.Unit.ConvertFromBase(a.Value)) / b.Value;
+
+      return new PhysicalQuantity<Fraction>(result, Fraction.Proportion);
+    }
   }
 
   public static class PhysicalQuantity {
