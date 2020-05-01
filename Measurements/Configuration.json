@@ -1,0 +1,55 @@
+{
+  "Dimensions": {
+    "L": {
+      "Name": "Length"
+    },
+    "T": {
+      "Name": "Time"
+    }
+  },
+  "Measurements": {
+    "Length": {
+      "Dimensions": {
+        "L": 1
+      },
+      "Units": [
+        {
+          "Name": "Meter",
+          "Plural": "Meters",
+          "Symbols": [ "m" ],
+          "StandardPrefixes": [ "k", "c", "m", "n", "f", "p", "a" ]
+        },
+        {
+          "Name": "Inch",
+          "Plural": "Inches",
+          "Symbols": [ "in", "\"" ],
+          "ToBase": [ 0.0254 ]
+        },
+        {
+          "Name": "Foot",
+          "Plural": "Feet",
+          "Symbols": [ "ft", "'" ],
+          "ToBase": [ 0.3048 ]
+        }
+      ]
+    },
+    "Time": {
+      "Dimensions": {
+        "T": 1
+      },
+      "Units": [
+        {
+          "Name": "Second",
+          "Plural": "Seconds",
+          "Symbols": [ "s", "sec", "\"" ]
+        },
+        {
+          "Name": "Minute",
+          "Plural": "Minutes",
+          "Symbols": [ "m", "min", "'" ],
+          "ToBase": [ 60.0 ]
+        }
+      ]
+    }
+  }
+}
