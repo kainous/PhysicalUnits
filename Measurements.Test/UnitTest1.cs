@@ -11,7 +11,7 @@ namespace Measurements.Test {
         public void TestMethod1() {
             var jobj = JObject.Parse(File.ReadAllText(@"..\..\..\..\Measurements\Configuration.json"));
             var dim = jobj["Dimensions"];
-            foreach (var sdf3 in dim.AsJEnumerable()) {
+            foreach (JProperty sdf3 in dim) {
                 var sdf = sdf3.Value<string>("Name");
                 //var sdfosidn = sdf3.Key;
             }

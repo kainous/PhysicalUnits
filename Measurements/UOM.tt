@@ -15,8 +15,86 @@
     var settingsJson = File.ReadAllText(settingsPath);
     var configuration = JObject.Parse(settingsJson);
 #>
-namespace System.Measurement.Dimensions { <#
-foreach (var dimension in configuration["Dimensions"]) { #>
-   
+using System.Collections.Generic;
+
+namespace System.Measurements { 
+    public partial class Dimension {
+<#  foreach (JObject dimension in configuration["Dimensions"]) { 
+        var symbol = dimension.Value<string>("Symbol")[0];
+        var textID = dimension.Value<string>("Name");
+#>
+        public static Dimension <#= textID #> = 
+            new Dimension("<#= textID #>", '<#= symbol #>');
+<# } #>
+    }
+
+<#  foreach (JProperty measurement in configuration["Measurements"]) { #>
+    public partial class <#= measurement.Name #> : Measurement<<#= measurement.Name #>> {
+        public override string Name => "<#= measurement.Name #>";
+
+        public override IReadOnlyDictionary<char, int> Dimensions => 
+            new Dictionary<char, int> {
+<#          foreach (JProperty dimension in measurement.Value["Dimensions"]) { #>
+                ['<#= dimension.Name #>'] = <#= dimension.Value #>,
+<#          } #>
+        };
+
+        public override PhysicalUnit<<#= measurement.Name #>> BaseUnit =>
+            <#= measurement.Value["Units"]?.FirstOrDefault().Value<string>("Plural") #>.Instance;
+
+<#      foreach (JObject unit in measurement.Value["Units"]) { 
+            var name = unit.Value<string>("Name");
+            var plural = unit.Value<string>("Plural");
+            
+            var toBase = unit["ToBase"];
+            //var c = 
+            //    toBase == null
+            //    ? LinearFractionalTransformation.Identity
+            //    : toBase.Value<double>() is double d
+            //      ? LinearFractionalTransformation.Identity * d
+            //      : null;
+
+            //var f = toBase?.Length switch {
+            //    null => new[] { 1.0, 0.0, 0.0, 1.0 },
+            //    4    => unit["ToBase"]?.AsJEnumerable<JToken>()?.Select(a => (double)a)?.ToArray()
+            //};
+            //
+            //var g = 
+            //    toBase != null 
+            //    ? toBase.Length
+            //    : new[] { 1.0, 0.0, 0.0, 1.0 };
+                
+
+
+            var conversion = unit["ToBase"]?.AsJEnumerable<JToken>()?.Select(a => (double)a)?.ToArray();
+
+
+            if (conversion == null) {
+                conversion = new double[4] { 1.0, 0.0, 0.0, 1.0 };
+            }            
+#>
+        public class <#= plural #> : PhysicalUnit<<#= measurement.Name #>> {
+            private <#= plural #>() {}
+            public static <#= plural #> Instance => new <#= plural #>();
+            public override string Name => "<#= name #>";
+            public override string Plural => "<#= plural #>";
+            // Round-trip doubles are being used, and so may not look exactly like the values found in JSON
+            public override LinearFractionalTransformation ToBase =>
+                <#= toBase == null
+                    ? "LinearFractionalTransformation.Identity"
+                    : toBase is JValue d
+                      ? $"LinearFractionalTransformation.Identity * {(double)d:G17}"
+                      : !(toBase is JArray arr)
+                        ? $@"throw new NotImplementedException(""Cannot use {toBase}"")"
+                        : arr.Count switch {
+                          0 => $"LinearFractionalTransformation.Identity * 0.0",
+                          1 => $"LinearFractionalTransformation.Identity * {(double)arr[0]:G17}",
+                          2 => $"LinearFractionalTransformation.Identity * {(double)arr[0]:G17} + {(double)arr[1]:G17}",
+                          4 => $"new LinearFractionalTransformation({(double)arr[0]:G17}, {(double)arr[1]:G17}, {(double)arr[2]:G17}, {(double)arr[3]:G17})",
+                          _ => $@"throw new NotImplementedException(""Cannot use {toBase}"")"
+                        } #>;
+        }
+<#      } #>
+    }
 <# } #>
 }

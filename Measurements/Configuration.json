@@ -1,17 +1,21 @@
 {
-  "Dimensions": {
-    "L": {
-      "Name": "Length"
+  "Dimensions": [
+    {
+      "Name": "Length",
+      "Symbol": "L"
     },
-    "T": {
-      "Name": "Time"
+    {
+      "Name": "Time",
+      "Symbol": "T"
     }
-  },
+  ],
   "Measurements": {
-    "Length": {
+    "Position": {
       "Dimensions": {
         "L": 1
       },
+      "Difference": "Displacement",
+      "Absolute": "Distance",
       "Units": [
         {
           "Name": "Meter",
@@ -48,6 +52,25 @@
           "Plural": "Minutes",
           "Symbols": [ "m", "min", "'" ],
           "ToBase": [ 60.0 ]
+        }
+      ]
+    },
+    "Velocity": {
+      "Dimensions": {
+        "L": 1,
+        "T": -1
+      },
+      "Units": [
+        {
+          "Name": "MeterPerSecond",
+          "Plural": "MetersPerSecond",
+          "Symbols": [ "m/s", "m s^-1" ]
+        },
+        {
+          "Name": "MilePerHour",
+          "Plural": "MilesPerHour",
+          "Symbols": [ "mph", "mi/hr" ],
+          "ToBase": 0.44704
         }
       ]
     }
