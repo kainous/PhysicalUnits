@@ -69,7 +69,7 @@
         {
           "Name": "MilePerHour",
           "Plural": "MilesPerHour",
-          "Symbols": [ "mph", "mi/hr" ],
+          "Symbols": [ "mph", "mi/hr", "mi hr^-1" ],
           "ToBase": 0.44704
         }
       ]

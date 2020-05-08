@@ -2,6 +2,7 @@
 <#@ assembly name="System.Core" #>
 <#@ import namespace="System.Linq" #>
 <#@ import namespace="System.Text" #>
+<#@ import namespace="System.Globalization" #>
 <#@ import namespace="System.IO" #>
 <#@ import namespace="System.Collections.Generic" #>
 <# /**********************************************/ #>
@@ -14,10 +15,178 @@
     var settingsPath = this.Host.ResolvePath($"Configuration.json");
     var settingsJson = File.ReadAllText(settingsPath);
     var configuration = JObject.Parse(settingsJson);
-#>
-using System.Collections.Generic;
 
-namespace System.Measurements { 
+    var basisNaming = new string[] {
+        "X",
+        "Y",
+        "Z",
+        "W"
+    };
+
+    string GetName(int total, int index) =>
+        total <= 4
+        ? basisNaming[index]
+        : $"X{index}";    
+#>
+using System.Linq;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Runtime.CompilerServices;
+
+namespace System.Measurements {
+<#  for (int i = 1; i < 6; i++) { #>
+    public struct Affine<#= i #><TMeasurement>
+      where TMeasurement : Measurement<TMeasurement> {
+        public PhysicalUnit<TMeasurement> UnitOfMeasure { get; }
+
+        private readonly IReadOnlyList<double> _items;      
+
+<#      for (int j = 0; j < i; j++) { #>
+        public double <#= GetName(i, j) #> => _items[<#= j #>];
+<#      } #>
+
+        internal double GetAt(int index) =>
+            _items[index];
+
+        public Affine<#= i #>(
+<#      for (int j = 0; j < i; j++) { #>
+          double <#= GetName(i, j).ToLower(CultureInfo.InvariantCulture) #>,
+<#      } #>
+          PhysicalUnit<TMeasurement> unitOfMeasure) {
+            UnitOfMeasure = unitOfMeasure;
+            _items = new ReadOnlyCollection<double>(new double[] {
+<#      for (int j = 0; j < i; j++) { #>
+                <#= GetName(i, j).ToLower(CultureInfo.InvariantCulture) #>,
+<#      } #>
+            });
+        }
+
+        internal Affine<#= i #>(double[] values, PhysicalUnit<TMeasurement> unitOfMeasure) {
+            _items = new ReadOnlyCollection<double>(values);
+            UnitOfMeasure = unitOfMeasure;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal Affine<#= i #><TMeasurement> Map(Func<double, double> transform, PhysicalUnit<TMeasurement> targetUnits) {
+            var arr = new double[_items.Count];
+            for (int i = 0; i < arr.Length; i++) {
+                arr[i] = transform(_items[i]);
+            }
+            return new Affine<#= i #><TMeasurement>(arr, targetUnits);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static Affine<#= i #><TMeasurement> Map2(Affine<#= i #><TMeasurement> first, Diff<#= i #><TMeasurement> second, Func<double, double, double> mapping, PhysicalUnit<TMeasurement> targetUnits) {
+            var arr = new double[first.Count];
+            for (int i = 0; i < arr.Length; i++) {
+                arr[i] = mapping(first._items[i], second._items[i]);
+            }
+            return new Affine<#= i #><TMeasurement>(arr, targetUnits);
+        }
+
+        public Affine<#= i #><TMeasurement> ConvertTo(PhysicalUnit<TMeasurement> targetUnits) =>
+            Map(UnitOfMeasure.ToBase.ComposeWith(targetUnits.FromBase).Transform, targetUnits);
+        
+        public static Diff<#= i #><TMeasurement> operator -(Affine<#= i #><TMeasurement> first, Affine<#= i #><TMeasurement> second) =>
+            first.UnitOfMeasure == second.UnitOfMeasure
+            ? Map2((a, b) => a - b, first.UnitOfMeasure)
+            : first - second.ConvertTo(first.UnitOfMeasure);
+
+        public static Affine<#= i #><TMeasurement> operator +(Affine<#= i #><TMeasurement> first, Diff<#= i #><TMeasurement> second) =>
+            first.UnitOfMeasure == second.UnitOfMeasure
+            ? Map2((a, b) => a + b, first.UnitOfMeasure)
+            : first + second.ConvertTo(first.UnitOfMeasure);
+
+        public static Affine<#= i #><TMeasurement> operator -(Affine<#= i #><TMeasurement> first, Diff<#= i #><TMeasurement> second) =>
+            first.UnitOfMeasure == second.UnitOfMeasure
+            ? Map2((a, b) => a - b, first.UnitOfMeasure)
+            : first - second.ConvertTo(first.UnitOfMeasure);
+    }
+
+    //A differential space, which is a vector space created by the affine space
+    public struct Diff<#= i #><TMeasurement>
+      where TMeasurement : Measurement<TMeasurement> {
+        public PhysicalUnit<TMeasurement> UnitOfMeasure { get; }
+
+        private readonly IReadOnlyList<double> _items;      
+
+<#      for (int j = 0; j < i; j++) { #>
+        public double <#= GetName(i, j) #> => _items[<#= j #>];
+<#      } #>
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal double GetAt(int index) =>
+            _items[index];
+
+        public Diff<#= i #>(
+<#      for (int j = 0; j < i; j++) { #>
+          double <#= GetName(i, j).ToLower(CultureInfo.InvariantCulture) #>,
+<#      } #>
+          PhysicalUnit<TMeasurement> unitOfMeasure) 
+          : this(new[] {
+<#      for (int j = 0; j < i; j++) { #>
+                <#= GetName(i, j).ToLower(CultureInfo.InvariantCulture) #>,
+<#      } #>          
+          }, unitOfMeasure){          
+        }
+
+        internal Diff<#= i #>(double[] values, PhysicalUnit<TMeasurement> unitOfMeasure) {
+            _items = new ReadOnlyCollection<double>(values);
+            UnitOfMeasure = unitOfMeasure;
+
+            var squareMagnitude = new Lazy<Diff1<TMeasurement>>(() =>
+                new Diff1<TMeasurement>(new[] {values.Select(x => x * x).Sum()}, unitOfMeasure));
+                            
+            _squareMagnitude = squareMagnitude;
+
+            _magnitude = new Lazy<Diff1<TMeasurement>>(() =>
+                new Diff1<TMeasurement>(new[] {Math.Sqrt(squareMagnitude.Value.GetAt(0))}, unitOfMeasure));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal Affine<#= i #><TMeasurement> Map(Func<double, double> transform, PhysicalUnit<TMeasurement> targetUnits) {
+            var arr = new double[_items.Count];
+            for (int i = 0; i < arr.Length; i++) {
+                arr[i] = transform(_items[i]);
+            }
+            return new Affine<#= i #><TMeasurement>(arr, targetUnits);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static Affine<#= i #><TMeasurement> Map2(Affine<#= i #><TMeasurement> first, Diff<#= i #><TMeasurement> second, Func<double, double, double> mapping, PhysicalUnit<TMeasurement> targetUnits) {
+            var arr = new double[first._items.Count];
+            for (int i = 0; i < arr.Length; i++) {
+                arr[i] = mapping(first._items[i], second.GetAt(i));
+            }
+            return new Affine<#= i #><TMeasurement>(arr, targetUnits);
+        }
+
+        public Affine<#= i #><TMeasurement> ConvertTo(PhysicalUnit<TMeasurement> targetUnits) =>
+            Map(UnitOfMeasure.ToBase.ComposeWith(targetUnits.FromBase).Transform, targetUnits);
+        
+        public static Diff<#= i #><TMeasurement> operator -(Affine<#= i #><TMeasurement> first, Affine<#= i #><TMeasurement> second) =>
+            first.UnitOfMeasure == second.UnitOfMeasure
+            ? Map2((a, b) => a - b, first.UnitOfMeasure)
+            : first - second.ConvertTo(first.UnitOfMeasure);
+
+        public static Affine<#= i #><TMeasurement> operator +(Affine<#= i #><TMeasurement> first, Diff<#= i #><TMeasurement> second) =>
+            first.UnitOfMeasure == second.UnitOfMeasure
+            ? Map2((a, b) => a + b, first.UnitOfMeasure)
+            : first + second.ConvertTo(first.UnitOfMeasure);
+
+        public static Affine<#= i #><TMeasurement> operator -(Affine<#= i #><TMeasurement> first, Diff<#= i #><TMeasurement> second) =>
+            first.UnitOfMeasure == second.UnitOfMeasure
+            ? Map2((a, b) => a - b, first.UnitOfMeasure)
+            : first - second.ConvertTo(first.UnitOfMeasure);
+
+        private readonly Lazy<Diff1<TMeasurement>> _magnitude;
+        public Diff1<TMeasurement> Magnitude => _magnitude.Value;
+
+        private readonly Lazy<Diff1<TMeasurement>> _squareMagnitude;
+        public Diff1<TMeasurement> SquareMagnitude => _squareMagnitude.Value;
+    }
+<#  } #>
+
     public partial class Dimension {
 <#  foreach (JObject dimension in configuration["Dimensions"]) { 
         var symbol = dimension.Value<string>("Symbol")[0];
@@ -40,61 +209,63 @@ namespace System.Measurements {
         };
 
         public override PhysicalUnit<<#= measurement.Name #>> BaseUnit =>
-            <#= measurement.Value["Units"]?.FirstOrDefault().Value<string>("Plural") #>.Instance;
+            _<#= measurement.Value["Units"]?.FirstOrDefault().Value<string>("Plural") #>.Instance;
+
+<#      foreach (JObject unit in measurement.Value["Units"]) {
+            var plural = unit.Value<string>("Plural");
+        #>
+        public static PhysicalUnit<<#= measurement.Name #>> <#= plural #>() => _<#= plural #>.Instance;
+        public static Affine1<<#= measurement.Name #>> <#= plural #>(double value) => new Affine1<<#= measurement.Name #>>(value, _<#= plural #>.Instance);
+            
+<#      } #>
+    }
 
 <#      foreach (JObject unit in measurement.Value["Units"]) { 
             var name = unit.Value<string>("Name");
-            var plural = unit.Value<string>("Plural");
-            
+            var plural = unit.Value<string>("Plural");            
             var toBase = unit["ToBase"];
-            //var c = 
-            //    toBase == null
-            //    ? LinearFractionalTransformation.Identity
-            //    : toBase.Value<double>() is double d
-            //      ? LinearFractionalTransformation.Identity * d
-            //      : null;
-
-            //var f = toBase?.Length switch {
-            //    null => new[] { 1.0, 0.0, 0.0, 1.0 },
-            //    4    => unit["ToBase"]?.AsJEnumerable<JToken>()?.Select(a => (double)a)?.ToArray()
-            //};
-            //
-            //var g = 
-            //    toBase != null 
-            //    ? toBase.Length
-            //    : new[] { 1.0, 0.0, 0.0, 1.0 };
-                
-
-
             var conversion = unit["ToBase"]?.AsJEnumerable<JToken>()?.Select(a => (double)a)?.ToArray();
-
 
             if (conversion == null) {
                 conversion = new double[4] { 1.0, 0.0, 0.0, 1.0 };
-            }            
+            }
 #>
-        public class <#= plural #> : PhysicalUnit<<#= measurement.Name #>> {
-            private <#= plural #>() {}
-            public static <#= plural #> Instance => new <#= plural #>();
-            public override string Name => "<#= name #>";
-            public override string Plural => "<#= plural #>";
-            // Round-trip doubles are being used, and so may not look exactly like the values found in JSON
-            public override LinearFractionalTransformation ToBase =>
-                <#= toBase == null
-                    ? "LinearFractionalTransformation.Identity"
-                    : toBase is JValue d
-                      ? $"LinearFractionalTransformation.Identity * {(double)d:G17}"
-                      : !(toBase is JArray arr)
-                        ? $@"throw new NotImplementedException(""Cannot use {toBase}"")"
-                        : arr.Count switch {
-                          0 => $"LinearFractionalTransformation.Identity * 0.0",
-                          1 => $"LinearFractionalTransformation.Identity * {(double)arr[0]:G17}",
-                          2 => $"LinearFractionalTransformation.Identity * {(double)arr[0]:G17} + {(double)arr[1]:G17}",
-                          4 => $"new LinearFractionalTransformation({(double)arr[0]:G17}, {(double)arr[1]:G17}, {(double)arr[2]:G17}, {(double)arr[3]:G17})",
-                          _ => $@"throw new NotImplementedException(""Cannot use {toBase}"")"
-                        } #>;
-        }
-<#      } #>
+    internal class _<#= plural #> : PhysicalUnit<<#= measurement.Name #>> {
+        private _<#= plural #>() {}
+        public static _<#= plural #> Instance => new _<#= plural #>();
+        public override string Name => "<#= name #>";
+        public override string Plural => "<#= plural #>";
+        // Round-trip doubles are being used, and so may not look exactly like the values found in JSON
+        public override LinearFractionalTransformation ToBase =>
+            <#= toBase == null
+                ? "LinearFractionalTransformation.Identity"
+                : toBase is JValue d
+                    ? $"new LinearFractionalTransformation({(double)d:G17})"
+                    : !(toBase is JArray arr)
+                    ? $@"throw new NotImplementedException(""Cannot use {toBase}"")"
+                    : arr.Count switch {
+                        0 => $"new LinearFractionalTransformation(0.0, 0.0, 0.0, 0.0)",
+                        1 => $"new LinearFractionalTransformation({(double)arr[0]:G17})",
+                        2 => $"new LinearFractionalTransformation({(double)arr[0]:G17}, {(double)arr[1]:G17})",
+                        4 => $"new LinearFractionalTransformation({(double)arr[0]:G17}, {(double)arr[1]:G17}, {(double)arr[2]:G17}, {(double)arr[3]:G17}).Normalized",
+                        _ => $@"throw new NotImplementedException(""Cannot use {toBase}"")"
+                    } #>;
+
+        public override LinearFractionalTransformation FromBase =>
+            <#= toBase == null
+                ? "LinearFractionalTransformation.Identity"
+                : toBase is JValue d2
+                    ? $"new LinearFractionalTransformation({1.0 / (double)d2:G17})"
+                    : !(toBase is JArray arr2)
+                    ? $@"throw new NotImplementedException(""Cannot use {toBase}"")"
+                    : arr2.Count switch {
+                        0 => $"new LinearFractionalTransformation(0.0, 0.0, 0.0, 0.0)",
+                        1 => $"new LinearFractionalTransformation({1.0 / (double)arr2[0]:G17})",
+                        2 => $"new LinearFractionalTransformation(1.0, -({(double)arr2[1]:G17}), 0.0, {(double)arr2[0]:G17})",
+                        4 => $"new LinearFractionalTransformation({(double)arr2[3]:G17}, -({(double)arr2[1]:G17}), -({(double)arr2[2]:G17}), {(double)arr2[0]:G17}).Normalized",
+                        _ => $@"throw new NotImplementedException(""Cannot use {toBase}"")"
+                    } #>;
     }
+<#      } #>
 <# } #>
 }
