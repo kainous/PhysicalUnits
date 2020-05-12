@@ -25,7 +25,7 @@ namespace System.Measurements {
                 throw new ArgumentException("Text ID must contain data", nameof(TextID));
             }
 
-            var sdfoin = SquareMatrix2.2
+            //var sdfoin = SquareMatrix2.2
 
             TextID = textID;
             Symbol = symbol;
